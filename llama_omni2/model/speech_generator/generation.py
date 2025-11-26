@@ -17,16 +17,46 @@ from transformers.generation.utils import (
     ModelOutput,
     GenerateNonBeamOutput,
     is_deepspeed_zero3_enabled,
-    is_torchdynamo_compiling,
-    NEED_SETUP_CACHE_CLASSES_MAPPING,
-    QUANT_BACKEND_CLASSES_MAPPING,
-    is_hqq_available,
-    QuantizedCacheConfig,
-    is_quanto_available,
     DynamicCache,
     EncoderDecoderCache,
     logging
 )
+
+# Handle optional imports that may not be available in all transformers versions
+try:
+    from transformers.generation.utils import is_torchdynamo_compiling
+except ImportError:
+    def is_torchdynamo_compiling():
+        return False
+
+try:
+    from transformers.generation.utils import NEED_SETUP_CACHE_CLASSES_MAPPING
+except ImportError:
+    NEED_SETUP_CACHE_CLASSES_MAPPING = {}
+
+try:
+    from transformers.generation.utils import QUANT_BACKEND_CLASSES_MAPPING
+except ImportError:
+    QUANT_BACKEND_CLASSES_MAPPING = {}
+
+try:
+    from transformers.generation.utils import is_hqq_available
+except ImportError:
+    def is_hqq_available():
+        return False
+
+try:
+    from transformers.generation.utils import QuantizedCacheConfig
+except ImportError:
+    class QuantizedCacheConfig:
+        def __init__(self, backend=None):
+            self.backend = backend
+
+try:
+    from transformers.generation.utils import is_quanto_available
+except ImportError:
+    def is_quanto_available():
+        return False
 
 logger = logging.get_logger(__name__)
 

@@ -172,9 +172,9 @@ class ModelWorker:
         speech_tensors = speech_tensors.to(dtype=torch.bfloat16, device='cuda', non_blocking=True)
         speech_lengths = speech_lengths.to(device='cuda', non_blocking=True)
 
-        temperature = float(params.get("temperature", 1.0))
-        top_p = float(params.get("top_p", 1.0))
-        max_new_tokens = min(int(params.get("max_new_tokens", 256)), 1024)
+        temperature = float(params.get("temperature", 0.7))  # Better default for detailed answers
+        top_p = float(params.get("top_p", 0.9))  # Better default for detailed answers
+        max_new_tokens = min(int(params.get("max_new_tokens", 512)), 1024)  # Better default for detailed answers
         do_sample = True if temperature > 0.001 else False
 
         streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=False, timeout=15)

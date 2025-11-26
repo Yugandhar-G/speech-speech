@@ -42,10 +42,12 @@ def get_conv_log_filename():
     return name
 
 
-def get_model_list():
-    ret = requests.post(args.controller_url + "/refresh_all_workers")
+def get_model_list(controller_url=None):
+    if controller_url is None:
+        controller_url = args.controller_url
+    ret = requests.post(controller_url + "/refresh_all_workers")
     assert ret.status_code == 200
-    ret = requests.post(args.controller_url + "/list_models")
+    ret = requests.post(controller_url + "/list_models")
     models = ret.json()["models"]
     logger.info(f"Models: {models}")
     return models
@@ -71,7 +73,7 @@ def inference_fn(history_state, audio_input, model_selector, temperature, top_p,
     model_name = model_selector
 
     # 查询 worker 地址
-    controller_url = args.controller_url
+    controller_url = getattr(args, 'controller_url', 'http://localhost:21001')
     ret = requests.post(controller_url + "/get_worker_address", json={"model": model_name})
     worker_addr = ret.json()["address"]
     logger.info(f"model_name: {model_name}, worker_addr: {worker_addr}")
@@ -91,7 +93,7 @@ def inference_fn(history_state, audio_input, model_selector, temperature, top_p,
     try:
         response = requests.post(worker_addr + "/worker_generate_stream",
                                  headers=headers, json=pload, stream=True, timeout=20)
-        device = "cuda"
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         
         session = vocoder.init_prompt(prompt_speech_16k)
         tts_speechs = []
@@ -127,6 +129,7 @@ def inference_fn(history_state, audio_input, model_selector, temperature, top_p,
         yield (history_state, None, copy.deepcopy(history_state))
         return
 
+    if 'wav_full' in locals() and wav_full is not None:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         torchaudio.save(f, torch.tensor(wav_full), 24000, format="wav")
         history_state.append({"role": "assistant", "content": {"path": f.name, "type": "audio/wav"}})
@@ -144,7 +147,11 @@ block_css = """
 """
 
 def build_demo(cur_dir=None, concurrency_count=10):
+    try:
     models = get_model_list()
+    except Exception as e:
+        logger.warning(f"Could not get model list: {e}, using empty list")
+        models = []
 
     with gr.Blocks(title="LLaMA-Omni2 Demo", theme=gr.themes.Default(), css=block_css) as demo:
         gr.Markdown(title_markdown)
@@ -170,9 +177,9 @@ def build_demo(cur_dir=None, concurrency_count=10):
             audio_output_box = gr.Audio(label="Output audio", show_download_button=False)
 
         with gr.Accordion("Parameters", open=False) as parameter_row:
-            temperature = gr.Slider(minimum=0.0, maximum=1.0, value=0.0, step=0.1, interactive=True, label="Temperature")
-            top_p = gr.Slider(minimum=0.0, maximum=1.0, value=0.7, step=0.1, interactive=True, label="Top P")
-            max_output_tokens = gr.Slider(minimum=0, maximum=1024, value=512, step=64, interactive=True, label="Max output tokens")
+            temperature = gr.Slider(minimum=0.0, maximum=1.0, value=0.7, step=0.1, interactive=True, label="Temperature (0.7 recommended for detailed answers)")
+            top_p = gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, interactive=True, label="Top P (0.9 recommended)")
+            max_output_tokens = gr.Slider(minimum=0, maximum=1024, value=512, step=64, interactive=True, label="Max output tokens (512+ for detailed answers)")
 
         with gr.Row():
             submit_btn = gr.Button(value="Send", variant="primary")
